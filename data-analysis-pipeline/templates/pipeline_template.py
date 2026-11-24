@@ -63,7 +63,7 @@ def drop_rows(df, mask, step, code, detail=""):
 
 # ---------- Stage 1：監査（読むだけ。データは一切いじらない） ----------
 # keep_default_na=False が大事："" や "NA" を勝手に欠損にされると監査の件数が狂う。
-raw = pd.read_csv(cfg["input_csv"], dtype=str, keep_default_na=False)
+raw = pd.read_csv(cfg["input_csv"], dtype=str, keep_default_na=False, encoding="utf-8-sig")
 print(f"[raw] rows={len(raw)}")
 audit_lines = [f"# audit — {cfg['input_csv']}", f"rows={len(raw)}, cols={len(raw.columns)}",
                f"exact_duplicate_rows={int(raw.duplicated().sum())}"]
@@ -129,7 +129,7 @@ if cfg["post_dedupe_keys"]:
     procedure.append(f"正規化後の重複削除：キー列 {cfg['post_dedupe_keys']} で再度 [重複の削除] を行います（書式違いで残った同一記録をここで落とします）。→ この時点で {len(df)} 行になるはずです。")
 
 # 洗ったデータを別ファイルに書く。生データには触らない。
-df.to_csv(out / "clean.csv", index=False)
+df.to_csv(out / "clean.csv", index=False, encoding="utf-8-sig")  # BOM付きUTF-8が標準（Excelで文字化けしない）
 print(f"[clean] rows={len(df)}")
 
 # ---------- Stage 3/4：イベント化（任意）＋ 分析テーブル ----------
@@ -183,7 +183,7 @@ procedure.append(f"集計：ピボットテーブルで {keys} ごとの件数�
 # 努力量が下限未満の単位は率の表から外す（分母が小さいと率が跳ねるため）。
 eff_cfg = cfg["effort"]
 if eff_cfg:
-    eff = pd.read_csv(eff_cfg["csv"])
+    eff = pd.read_csv(eff_cfg["csv"], encoding="utf-8-sig")
     eff["flag"] = np.where(eff[eff_cfg["value_col"]] < eff_cfg["warn_below"],
                            f"FLAG < {eff_cfg['warn_below']}", "")
     table = table.merge(eff, left_on=keys[0], right_on=eff_cfg["unit_col"], how="left")
@@ -193,16 +193,16 @@ if eff_cfg:
         decisions.append(f"Effort: units below {eff_cfg['exclude_below']} excluded from rate table: {excluded_units}. [source: default]")
         table = table[~table[keys[0]].isin(excluded_units)]
     procedure.append(f"率の計算：努力量表をキー「{eff_cfg['unit_col']}」で引き当てて結合し、率 = 件数 ÷ {eff_cfg['value_col']} を計算します。{eff_cfg['value_col']} が {eff_cfg['exclude_below']} 未満の単位は、分母が小さく率が不安定なため表から除きます（警告のみは {eff_cfg['warn_below']} 未満）。")
-    eff.to_csv(out / "effort_table.csv", index=False)
+    eff.to_csv(out / "effort_table.csv", index=False, encoding="utf-8-sig")
 
-table.to_csv(out / "analysis_table.csv", index=False)
+table.to_csv(out / "analysis_table.csv", index=False, encoding="utf-8-sig")
 print(f"[analysis table] rows={len(table)}")
 print(table.head(20).to_string(index=False))
 
 # ---------- 出力：除外台帳と判断ログ ----------
 # 除外した行は理由コード付きで全部出す。後から「なぜこの行が無いのか」に答えられるように。
 if excluded_frames:
-    pd.concat(excluded_frames).to_csv(out / "excluded_rows.csv", index=False)
+    pd.concat(excluded_frames).to_csv(out / "excluded_rows.csv", index=False, encoding="utf-8-sig")
 lines = ["# decision_log", *[f"- {d}" for d in decisions], "", "## count ledger"]
 lines += [f"- {s}: in={i} out={o}" for s, i, o in ledger]
 lines += [f"- raw rows={len(raw)}, clean rows={len(df)}, excluded rows total="

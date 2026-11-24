@@ -165,7 +165,7 @@ if (!is.null(cfg$post_dedupe_keys)) {
 }
 
 # 洗ったデータを別ファイルに書く。生データには触らない。
-write_csv(df, file.path(cfg$out_dir, "clean.csv"))
+write_excel_csv(df, file.path(cfg$out_dir, "clean.csv"))  # BOM付きUTF-8が標準（Excelで文字化けしない）
 cat(sprintf("[clean] rows=%d\n", nrow(df)))
 
 # ---------- Stage 3/4：イベント化（任意）＋ 分析テーブル ----------
@@ -258,17 +258,17 @@ if (!is.null(eff_cfg)) {
   procedure <- c(procedure, sprintf("率の計算：努力量表をキー「%s」で引き当てて結合し、率 = 件数 ÷ %s を計算します。%s が %d 未満の単位は、分母が小さく率が不安定なため表から除きます（警告のみは %d 未満）。",
                                     eff_cfg$unit_col, eff_cfg$value_col, eff_cfg$value_col,
                                     eff_cfg$exclude_below, eff_cfg$warn_below))
-  write_csv(eff, file.path(cfg$out_dir, "effort_table.csv"))
+  write_excel_csv(eff, file.path(cfg$out_dir, "effort_table.csv"))
 }
 
-write_csv(table_out, file.path(cfg$out_dir, "analysis_table.csv"))
+write_excel_csv(table_out, file.path(cfg$out_dir, "analysis_table.csv"))
 cat(sprintf("[analysis table] rows=%d\n", nrow(table_out)))
 print(head(table_out, 20))
 
 # ---------- 出力：除外台帳と判断ログと手順書 ----------
 # 除外した行は理由コード付きで全部出す。後から「なぜこの行が無いのか」に答えられるように。
 if (length(excluded_frames) > 0) {
-  write_csv(bind_rows(excluded_frames), file.path(cfg$out_dir, "excluded_rows.csv"))
+  write_excel_csv(bind_rows(excluded_frames), file.path(cfg$out_dir, "excluded_rows.csv"))
 }
 lines <- c("# decision_log", paste0("- ", decisions), "", "## count ledger",
            sapply(ledger, function(x) sprintf("- %s: in=%s out=%s", x[1], x[2], x[3])),

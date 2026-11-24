@@ -31,6 +31,7 @@ became parameters; the audit trail stayed mandatory.
 5. **Decisions are logged with their source.** Every threshold, mapping, exclusion and unit conversion goes to the decision log, tagged `source: user | default | inferred`. Decisions still on `default`/`inferred` are listed at the top of the final report as **unconfirmed decisions**. Log values must be computed by the script, never hand-typed prose (a hand-written log can lie).
 6. **Fail closed.** Unmapped label → stop or quarantine. Unparseable datetime → quarantine, not silent coercion. Imputation is off unless explicitly configured with a reason.
 7. **One-off analysis = single-file linear code.** No reuse-premised modularization. Start from `templates/pipeline_template.py`, fill its CONFIG, run top to bottom.
+8. **CSV outputs are UTF-8 with BOM.** So they open correctly in Excel on Windows (no mojibake for Japanese labels): Python `encoding="utf-8-sig"`, R `readr::write_excel_csv()` (or base `write.csv(..., fileEncoding = "UTF-8-BOM")`). Read inputs BOM-tolerantly (`utf-8-sig` / readr default) so a BOM'd file round-trips.
 
 ---
 
