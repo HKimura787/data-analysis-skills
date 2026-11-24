@@ -168,9 +168,11 @@ Stages 1–4 with a CONFIG block at the top (input path, column roles, mapping
 tables, eventization and effort parameters). Copy it into the project as
 `pipeline.py`, fill CONFIG, and run. It prints the count ledger and writes
 `audit.md`, `clean.csv`, `analysis_table.csv`, a filled `decision_log.md`, and
-`procedure.md` (the manual reproduction guide). An R twin template
-(`pipeline_template.R`, tidyverse style) is in preparation; it must agree
-exactly with the Python template on the planted-defect fixture before it ships.
+`procedure.md` (the manual reproduction guide). `templates/pipeline_template.R`
+is the R twin (tidyverse style); both templates agree exactly on the
+planted-defect fixture — verified 2026-11-24: identical clean-table rows,
+analysis tables, and exclusion reason codes. The R template requires a UTF-8
+locale and stops otherwise.
 
 ## References (official skills consulted for this design)
 
