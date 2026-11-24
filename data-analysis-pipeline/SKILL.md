@@ -120,6 +120,13 @@ Run the companion `data-analysis-check` skill's 11-item verification on the resu
 - Subtotals sum to totals; percentages to ~100% where they should
 - Named pitfall sweep (catalog from Anthropic's validate-data): **join explosion** (row gains at joins), **denominator shifting** (the base changes between compared numbers), **average of averages**, **incomplete-period comparison**, **timezone mismatch**, **survivorship / selection bias** (exclusions correlate with the outcome)
 
+**Zero-base re-implementation check (high-stakes work only** — published estimates, government submissions, anything where an error is not acceptable): once the specification has stabilized, have the pipeline re-implemented from scratch and keep the rewrite as the deliverable (the first implementation was exploration; the rewrite is the clean copy). Conditions, without which it degrades into tracing the original:
+
+- The re-implementer gets **only the specification/procedure sheet and the raw data — never the original code**
+- Change the implementer or the language (human / different model / Python⇔R)
+- Compare the count ledger at every stage and diff the final tables cell by cell; every mismatch is investigated to its root cause — if the cause is specification ambiguity, fix the specification, not just the code
+- Agreement proves the implementation matches the specification; it does **not** prove the specification is right. Correlated misreading is real (Knight & Leveson 1986; cross-model error correlation ~60% in the user's 2026-11-20 study), so one anchor outside the system is still required: a known total, hand-counted samples, or a planted-truth test
+
 The pipeline is not done until Stage 6 passes.
 
 ---
