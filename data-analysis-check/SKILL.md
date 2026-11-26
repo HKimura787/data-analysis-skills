@@ -1,6 +1,11 @@
+---
+name: data-analysis-check
+description: "データの集計・変換・統計処理の検証プロトコル。集計前の定義固定（手順書ゲート）、11項目の検証表、ゼロベース再実装チェック。Use when aggregating or transforming tabular data, computing indicators, or reviewing analysis results (including other AIs') before reporting — or mentions 集計の検証, 検証表, 分析結果のレビュー, 分母, 単位変換. データ加工の工程は data-analysis-pipeline、LLMへの任せ方は data-analysis-llm-practice に渡す。"
+---
+
 # Data Analysis Check — データ分析の検証スキル
 
-データの集計・変換・統計処理を行ったり、他人（他のAI含む）の分析結果をレビューしたりするときに使う検証プロトコル。目的は、人間が目視では気づけない誤り（取り違え・分母の誤り・欠損の黙殺・版の混在）を、機械的な照合で捕まえること。根拠：2026-11-18にユーザーが「チェック項目を整理してスキルとしてまとめておく」ことを承認し作成。設計の元は同日の解説ページ「AIの使い方 — 二つの実践メモから」のデータ分析編（実務編）。2026-11-20に3系統の並行調査（Muse自身の探索、Claude、ChatGPT Deep Research）で実務者文献と突き合わせて強化した。調査ノート：~/workspace/research_notes/ai-ds-workflow/。
+データの集計・変換・統計処理を行ったり、他人（他のAI含む）の分析結果をレビューしたりするときに使う検証プロトコル。目的は、人間が目視では気づけない誤り（取り違え・分母の誤り・欠損の黙殺・版の混在）を、機械的な照合で捕まえること。根拠：2026-11-18にユーザーが「チェック項目を整理してスキルとしてまとめておく」ことを承認し作成。設計の元は同日の解説ページ「AIの使い方 — 二つの実践メモから」のデータ分析編（実務編）。2026-11-20に3系統の並行調査（自前調査、Claude、ChatGPT Deep Research）で実務者文献と突き合わせて強化した。
 
 ## いつ使うか
 
