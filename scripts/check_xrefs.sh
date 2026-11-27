@@ -21,8 +21,8 @@ PIPE=data-analysis-pipeline/SKILL.md
 LLM=data-analysis-llm-practice/SKILL.md
 
 # llm-practice -> check
-check "$CHECK" "## ゼロベース再実装チェック" "llm-practice -> check: ゼロベース再実装チェック節"
-check "$CHECK" "## 手順2：集計後に検証表を出す" "llm-practice -> check: 検証表（手順2）"
+check "$CHECK" "## 手順4：ゼロベース再実装チェック" "llm-practice -> check: ゼロベース再実装チェック節"
+check "$CHECK" "## 手順3：集計後に検証表を出す" "llm-practice -> check: 検証表（手順2）"
 check "$CHECK" "別AI照合と真値テスト" "llm-practice -> check: 項目11（真値テスト）"
 # llm-practice -> pipeline
 check "$PIPE" "## Stage 0" "llm-practice -> pipeline: Stage 0（grain）"

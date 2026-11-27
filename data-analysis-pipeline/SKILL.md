@@ -26,10 +26,10 @@ became parameters; the audit trail stayed mandatory.
 
 1. **Raw is immutable.** Copy inputs to `00_raw/` first; never write back. All outputs are new files.
 2. **Definitions before code.** Fix the specification (Stage 0) and get it stated back before transforming anything.
-3. **Mappings are explicit.** Category normalization uses a written mapping table. Unknown labels are excluded and counted — never guessed. Before lookup, apply mechanical normalization only (NFKC, strip, collapse spaces, casefold) — that absorbs halfwidth/whitespace variants without inventing meaning.
+3. **Mappings are explicit.** Category normalization uses a written mapping table. Unknown labels are excluded and counted — never guessed. Before lookup, apply mechanical normalization only (NFKC, strip, collapse spaces, casefold) — that absorbs halfwidth/whitespace variants without inventing meaning. When mechanical normalization merges two distinct raw labels into one, write the full raw→normalized mapping to the decision log; in `procedure.md`, express normalization as a lookup against that complete mapping table (Excel has no NFKC operation).
 4. **Counts balance at every step.** Invariant: `n_in == n_kept + n_excluded + n_quarantined`. Print the ledger after each stage (raw → dedupe → parse → normalize → analysis table); a count that cannot be explained stops the pipeline. Excluded/quarantined rows are written to `excluded_rows.csv` with a reason code — never just dropped.
-5. **Decisions are logged with their source.** Every threshold, mapping, exclusion and unit conversion goes to the decision log, tagged `source: user | default | inferred`. Decisions still on `default`/`inferred` are listed at the top of the final report as **unconfirmed decisions**. Log values must be computed by the script, never hand-typed prose (a hand-written log can lie).
-6. **Fail closed.** Unmapped label → stop or quarantine. Unparseable datetime → quarantine, not silent coercion. Imputation is off unless explicitly configured with a reason.
+5. **Decisions are logged with their source.** Every threshold, mapping, exclusion and unit conversion goes to the decision log, tagged `source: user | default | inferred`. Decisions still on `default`/`inferred` are listed at the top of the final report as **unconfirmed decisions**. Do not hand-write `decision_log.md` as prose: the script generates it from its CONFIG block and runtime count variables, so logged numbers cannot diverge from the actual run (the reasons — the "why" — are strings written in CONFIG that the script emits verbatim).
+6. **Fail closed.** Unmapped label → **stop by default**: show the unmapped labels with counts and let the user decide (extend the mapping table, or quarantine). Quarantine only on the user's decision, logged with `source: user`. Unparseable datetime → quarantine, not silent coercion. Imputation is off unless explicitly configured with a reason.
 7. **One-off analysis = single-file linear code.** No reuse-premised modularization. Start from `templates/pipeline_template.py`, fill its CONFIG, run top to bottom.
 8. **CSV outputs are UTF-8 with BOM.** So they open correctly in Excel on Windows (no mojibake for Japanese labels): Python `encoding="utf-8-sig"`, R `readr::write_excel_csv()` (or base `write.csv(..., fileEncoding = "UTF-8-BOM")`). Read inputs BOM-tolerantly (`utf-8-sig` / readr default) so a BOM'd file round-trips.
 
@@ -38,13 +38,15 @@ became parameters; the audit trail stayed mandatory.
 ## Code style (applies to every script this skill produces)
 
 - **Comment what each block does** — its purpose and the judgment behind it, not syntax narration. The reader is a human (the user) checking the analysis, possibly months later.
-- **Disposable by default.** No reuse-premised abstraction, frameworks, or config systems. A function is justified only when the same operation literally repeats; parameters live in one CONFIG block at the top.
-- **Flat, example-style code**, like the pandas and tidyverse documentation examples: one operation per step, intermediate results in meaningfully named variables, intermediate tables printed. Avoid nested one-liners and long chains that hide intermediate state — the intermediate state is what gets verified.
-- **Manually reproducible, with a procedure document.** Every transformation must be expressible as operations a human could perform by hand in Excel — sort, filter, lookup against a mapping table, pivot — even when the row count makes it impractical in practice. No cleaning/shaping step that only a black box can perform. A procedure document (`procedure.md`) is always shipped: numbered manual steps a person can follow in a spreadsheet to reproduce the same result, each step carrying its checkpoint count from the ledger ("after this step you should have N rows"), so a manual worker can verify their progress against the script's run.
+- **Disposable, flat, single file** (user's rules, 2026-11-24 / 2026-11-27). No reuse-premised abstraction, frameworks, or external config files; parameters live in one CONFIG block at the top. Write like the pandas and tidyverse documentation examples: one operation per line, every intermediate product (data frame etc.) kept in a meaningfully named variable and inspectable at each step (print `shape` / `head()` / key-column sums). Never bury intermediate state inside nested one-liners, long method chains, composed expressions, or helper internals — the intermediate state is what gets verified.
+- **Plain `for` loops; functions only when the same operation literally repeats.** Write repetition over processing units (files, species, sites, years) as an explicit `for` loop the reader can step through line by line. Whole-column vector operations stay as one-line vector operations; whether a row-wise loop is needed is decided by the meaning of the operation.
+- **Manually reproducible, with a procedure document.** Every transformation must be expressible as operations a human could perform by hand in Excel — sort, filter, lookup against a mapping table, pivot, a computed column (same-row arithmetic, previous-row reference), moving rows aside — even when the row count makes it impractical in practice. No cleaning/shaping step that only a black box can perform. A procedure document (`procedure.md`) is always shipped: draft the steps at Stage 0 for approval (definitions only — counts are not known yet), then emit the final version after the run with each step carrying its checkpoint count from the ledger ("after this step you should have N rows"), so a manual worker can verify their progress against the script's run.
 
-## Stage 0 — Specification (procedure sheet)
+## Stage 0 — Specification
 
-Before any code, write down and confirm:
+The specification (definitions — saved as `spec.md`) is what gets approved before code. It is **not** `procedure.md`: the manual procedure document carries checkpoint counts that only exist after the run, so its final version is emitted after execution (see Code style).
+
+Before any code, write down and confirm (this table is the pipeline-side view of the canonical spec list in `data-analysis-check` 手順1 — the items are the same):
 
 | Item | What to fix |
 |---|---|
@@ -54,8 +56,15 @@ Before any code, write down and confirm:
 | Denominators | What every rate is divided by (effort, exposure, population) and where it comes from |
 | Exclusions | Known invalid records and the rule that identifies them |
 | Missing policy | Per column: exclude / impute (how) / flag — decided now, not mid-code |
+| Datetime | Expected format(s), `dayfirst`, timezone |
+| Dedupe key | The key that makes two rows "the same record" (or: exact-duplicate handling only) |
+| Eventization | Gap threshold, anchor, boundary (`>=` vs `>`) — **no defaults**: if not declared, ask |
+| Effort | How exposure is counted, and the minimum-effort rule |
+| Unobserved cells | Unit × period cells not observed are `NA`, never `0` |
+| Stakes tier | 通常 / 重要 / 間違いが許されない (tiers defined in `data-analysis-check` 手順1) — decides how much of Stage 6 is mandatory |
+| Language | Python or R |
 
-If the user cannot state the definitions back, the specification is not done.
+Done when the user can answer, in their own words, the three gate questions of `data-analysis-check` 手順1: what was excluded (WHERE), the numerator/denominator of every metric, and the join keys and grain (does a join multiply rows?).
 
 ## Stage 1 — Audit (inspect only, modify nothing)
 
@@ -63,9 +72,11 @@ Produce an audit table:
 
 - Row/column counts; exact-duplicate row count
 - Per column: fill rate, distinct-value count, top values
-- **Read everything as string first** (`keep_default_na=False` / explicit `na_tokens`): spreadsheet libraries silently convert `""` and `"NA"` to null, which corrupts audit counts (e.g. a literal "NA" label disappears)
+- **Read everything as string first** (`keep_default_na=False` / explicit `na_tokens`, `dtype=str`): spreadsheet libraries silently convert `""` and `"NA"` to null, which corrupts audit counts (e.g. a literal "NA" label disappears), and numeric coercion drops leading zeros from codes (municipality / mesh / individual IDs)
+- **Encoding**: Japanese administrative data is often CP932 (Shift_JIS), not UTF-8. Detect it, and record the encoding actually used in `audit.md` — never hard-assume. Record each input file's sha256 in the decision log's data-version entry
+- **Excel inputs**: sheet list, merged cells, multi-row headers, hidden rows/columns, date serial values, fullwidth digits
 - Datetime columns: how many distinct formats are present
-- Numeric columns: parse-failure count, min/max, impossible values
+- Numeric columns: parse-failure count, min/max, impossible values, **and the column total** (the pre-cleaning anchor that later stages reconcile against)
 - Category columns: full distinct-label list (this feeds the mapping table)
 - Key columns: uniqueness check
 
@@ -75,9 +86,9 @@ Output: `audit.md`. Do **not** clean in this stage.
 
 In order, printing counts after each operation:
 
-1. Drop exact duplicates (report n). If a dedupe key is declared, dedupe on it and report n.
-2. Parse datetimes with mixed-format parsing. Unparseable values → `quarantine.csv` with a reason code (do not assert-crash, do not coerce silently). Record which format parsed each row when formats are ambiguous (e.g. 03/04 — declare `dayfirst` and the timezone in the specification).
-3. Normalize categories: mechanical preprocessing (NFKC/strip/casefold) → mapping table built from the Stage-1 label list. Distinguish **known-unknown** labels (the source deliberately wrote 不明/unknown — exclude with code `UNKNOWN_LABEL`) from **unmapped** labels (not in the table — fail closed: stop or quarantine; never drop silently).
+1. Exact duplicates: report the count and examples in `audit.md` first. Whether they are dropped is a Stage-0 specification decision (in count data, two identical rows can be two legitimate individuals) — log it in the decision log. Dropped duplicates go to `excluded_rows.csv` with reason `EXACT_DUPLICATE`, so the count invariant still balances. If a dedupe key is declared, dedupe on it and report n.
+2. Parse datetimes with mixed-format parsing. Unparseable values → `excluded_rows.csv` with `status=quarantined` and reason code `UNPARSEABLE_DATETIME` (do not assert-crash, do not coerce silently). Record which format parsed each row when formats are ambiguous (e.g. 03/04 — declare `dayfirst` and the timezone in the specification).
+3. Normalize categories: mechanical preprocessing (NFKC/strip/casefold) → mapping table built from the Stage-1 label list. Distinguish **known-unknown** labels (the source deliberately wrote 不明/unknown — exclude with code `UNKNOWN_LABEL`) from **unmapped** labels (not in the table — fail closed: stop by default and let the user decide, per principle 6; never drop silently).
 4. Coerce numerics; report parse failures per column.
 5. Apply the Stage-0 missing policy per column; report rows affected per column.
 6. **Dedupe again after normalization** on the declared key: the same record written in two datetime formats or two label variants survives raw dedupe and must be caught here.
@@ -108,7 +119,7 @@ Output: `analysis_table.csv` (+ `effort_table.csv` when applicable).
 - Inferential work: hand off to the dedicated skills — `statistical-analysis`, `pymc` (Bayesian), `occupancy-and-detection` / domain skills where relevant.
 - Figures: hand off to `scientific-visualization`. Every figure states what was filtered out.
 - **Spreadsheet deliverables** (rule from Anthropic's xlsx skill): write formulas, never hardcoded computed results, so the sheet recalculates when inputs change; document every assumption and hardcoded number where the reader can see it; ship zero formula errors — and remember a clean recalculation proves formulas *evaluate*, not that they are *right*, so spot-check that a few formulas pull the expected values.
-- **Notebook deliverables** (convention from OpenAI's jupyter-notebook skill): small runnable cells, each with a short note of purpose and expected result; validate by running top to bottom; if execution is impossible, say so explicitly.
+- **Notebook deliverables** (convention from OpenAI's jupyter-notebook skill): small runnable cells, each with a short note of purpose and expected result; validate by running top to bottom; if execution is impossible, say so explicitly. Notebooks are for this stage only (descriptive statistics and figures): Stages 1–4 live in the single `pipeline.py`, and a notebook's only input is `analysis_table.csv` — never clean or reshape inside a notebook. The code style above applies to notebook code too.
 
 ## Stage 6 — Verification
 
@@ -116,18 +127,13 @@ Run the companion `data-analysis-check` skill's 11-item verification on the resu
 
 - Count reconciliation: raw → clean → analysis table, every difference explained by a logged rule
 - Independent recalculation of one headline number by a different route
-- Known-truth check: one value verified by hand from the raw file
+- Known-truth check: a few values (at least 3, one of them near an exclusion boundary) verified by hand from the raw file
 - Subtotals sum to totals; percentages to ~100% where they should
-- Named pitfall sweep (catalog from Anthropic's validate-data): **join explosion** (row gains at joins), **denominator shifting** (the base changes between compared numbers), **average of averages**, **incomplete-period comparison**, **timezone mismatch**, **survivorship / selection bias** (exclusions correlate with the outcome)
+- Named pitfall sweep (catalog from Anthropic's validate-data, plus the domain pitfalls of `data-analysis-check`): **join explosion** (row gains at joins), **denominator shifting** (the base changes between compared numbers), **average of averages**, **incomplete-period comparison**, **timezone mismatch**, **survivorship / selection bias** (exclusions correlate with the outcome), **version mixing** (concatenating different revisions of retroactively updated statistics), **fiscal vs. calendar year mismatch**, **unit scale error** (ha vs. km², 0–1 vs. %)
 
-**Zero-base re-implementation check (high-stakes work only** — published estimates, government submissions, anything where an error is not acceptable): once the specification has stabilized, have the pipeline re-implemented from scratch and keep the rewrite as the deliverable (the first implementation was exploration; the rewrite is the clean copy). Conditions, without which it degrades into tracing the original:
+**Zero-base re-implementation (stakes tier 間違いが許されない only** — published estimates, government submissions): follow `data-analysis-check` 手順4 exactly; it is the canonical text. Pipeline-specific additions: compare the count ledger at **every stage** (raw → dedupe → parse → normalize → analysis table) and diff `analysis_table.csv` cell by cell. Never give the re-implementer the original code, **its ledger counts, or `procedure.md`** — counts shown in advance turn re-implementation into tracing. Agreement proves the implementation matches the specification, not that the specification is right (when both models err, they produce the same wrong answer ~60% of the time — the conditional figure defined in `data-analysis-check` 項目11), so one anchor outside the system is still required.
 
-- The re-implementer gets **only the specification/procedure sheet and the raw data — never the original code**
-- Change the implementer or the language (human / different model / Python⇔R)
-- Compare the count ledger at every stage and diff the final tables cell by cell; every mismatch is investigated to its root cause — if the cause is specification ambiguity, fix the specification, not just the code
-- Agreement proves the implementation matches the specification; it does **not** prove the specification is right. Correlated misreading is real (Knight & Leveson 1986; cross-model error correlation ~60% in the user's 2026-11-20 study), so one anchor outside the system is still required: a known total, hand-counted samples, or a planted-truth test
-
-The pipeline is not done until Stage 6 passes.
+**"Passes" means:** every verification-table row is OK, or NG with an explanation the user has accepted; no `default`/`inferred` decision remains unconfirmed without the user's sign-off; and `procedure.md`'s checkpoint counts match the ledger. The pipeline is not done until Stage 6 passes.
 
 ---
 
@@ -143,6 +149,10 @@ The pipeline is not done until Stage 6 passes.
   analysis_table.csv # Stage 4 output
   decision_log.md    # every mapping, threshold, exclusion, conversion + reason + source
   procedure.md       # manual reproduction guide (spreadsheet steps + checkpoint counts)
+  spec.md            # Stage 0 specification (definitions approved before code)
+  verification.md    # Stage 6 verification table + results (data-analysis-check 手順5 order)
+  report.md          # final report, when one is produced
+  fixtures/          # known-answer test data with planted defects
   pipeline.py        # the single-file script that produced everything above
 ```
 
@@ -158,7 +168,10 @@ the R and Python templates must agree on it exactly.
 - Every threshold (eventization gap, effort minimums) and why
 - Every exclusion rule and how many rows it removed
 - Every unit conversion
-- Data version of the inputs
+- Data version of the inputs (including each file's sha256 and the encoding used)
+- Missing policy per column; datetime format(s), timezone, `dayfirst`
+- Dedupe key and the exact-duplicate decision; eventization anchor and boundary; effort counting convention
+- Labels merged by mechanical normalization (the full raw→normalized list)
 
 ## Anti-patterns (stop and fix if you catch yourself)
 
@@ -173,8 +186,11 @@ the R and Python templates must agree on it exactly.
 
 `templates/pipeline_template.py` — a single-file, top-to-bottom implementation of
 Stages 1–4 with a CONFIG block at the top (input path, column roles, mapping
-tables, eventization and effort parameters). Copy it into the project as
-`pipeline.py`, fill CONFIG, and run. It prints the count ledger and writes
+tables, eventization and effort parameters). The template is a **draft to edit
+directly**, not a generic engine: copy it into the project as `pipeline.py`,
+delete the stages the job does not use, write data-specific steps inline in
+ベタ書き style, and do not grow CONFIG flags or branches to cover new cases.
+Fill CONFIG, and run. It prints the count ledger and writes
 `audit.md`, `clean.csv`, `analysis_table.csv`, a filled `decision_log.md`, and
 `procedure.md` (the manual reproduction guide). `templates/pipeline_template.R`
 is the R twin (tidyverse style); both templates agree exactly on the
