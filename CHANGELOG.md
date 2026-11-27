@@ -2,6 +2,8 @@
 
 ## 2026-11-27 — Claude／Gemini 添削の反映
 
+- README と pipeline の来歴表現を一般化（特定分野のデータ処理に由来する旨の文言を削除）。
+
 2つのAI（Claude、Gemini）に3スキルを添削させ、指摘を突き合わせて反映した。
 
 - `data-analysis-check`：YAML frontmatter を本文と合わせて更新。手順を

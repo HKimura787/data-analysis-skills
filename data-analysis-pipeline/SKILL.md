@@ -16,9 +16,9 @@ Guides the agent through one reproducible pass over a dirty tabular dataset:
 with raw data never overwritten, every row-count change accounted for, and every
 judgment (mapping, threshold, exclusion) written to a decision log.
 
-Generalized from a camera-trap pipeline (audit → species-name normalization →
-30-min independence filter → effort table → detection history). The domain rules
-became parameters; the audit trail stayed mandatory.
+The stages generalize a concrete production pipeline (audit → label
+normalization → independence filter → effort table → event history).
+Domain-specific rules became parameters; the audit trail stayed mandatory.
 
 ---
 
@@ -106,7 +106,7 @@ Output: `clean.csv` (new file; raw untouched).
 ## Stage 4 — Analysis table
 
 - Aggregate to the declared analysis unit.
-- **Eventization (optional, parameterized):** when near-duplicate events in time must be collapsed (the camera-trap 30-min rule generalized): group keys + time column + gap threshold. Declare the **anchor** (`last_kept`: gap measured from the last kept event — or `last_record`: from the previous record) and the boundary (`>=` vs `>`); the counts differ by anchor, so an undeclared anchor is a hidden decision. Keep `source_row_ids` on each event so it stays traceable to the raw rows. Report records → events and n collapsed, plus counts at 1–2 alternative thresholds (sensitivity) so the reader can see whether conclusions depend on the choice.
+- **Eventization (optional, parameterized):** when near-duplicate events in time must be collapsed (e.g. a 30-minute independence rule): group keys + time column + gap threshold. Declare the **anchor** (`last_kept`: gap measured from the last kept event — or `last_record`: from the previous record) and the boundary (`>=` vs `>`); the counts differ by anchor, so an undeclared anchor is a hidden decision. Keep `source_row_ids` on each event so it stays traceable to the raw rows. Report records → events and n collapsed, plus counts at 1–2 alternative thresholds (sensitivity) so the reader can see whether conclusions depend on the choice.
 - **Denominator/effort table (when rates are computed):** build the exposure table separately (e.g. trap-nights, observation days, person-time). State the counting convention explicitly (`nights = (end − start).days` vs `days = +1` — they differ by one and both appear in the wild). Apply declared minimum-effort rules (flag below warning level, exclude below hard minimum) and state them in the log. Never report a rate whose denominator table does not exist.
 - **Matrix outputs:** a unit × period cell that was **not observed** (unit inactive that period) is `NA`, never `0`. `0` means observed and absent. Filling unobserved cells with 0 manufactures false absences and biases occupancy/detection estimates.
 - Sanity: check the final table's dimensions against the specification (n units × n periods).
@@ -204,4 +204,4 @@ locale and stops otherwise.
 - Anthropic, [skills — xlsx](https://github.com/anthropics/skills/tree/main/skills/xlsx) (formulas over hardcoded results; zero formula errors; documented assumptions)
 - OpenAI, [skills — jupyter-notebook](https://github.com/openai/skills/tree/main/skills/.curated/jupyter-notebook) (small runnable cells, top-to-bottom validation)
 - K-Dense-AI, [scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills) (`exploratory-data-analysis`: audit-only stance, never auto-modify raw data)
-- baratadiego, [ecological-agent-skills](https://github.com/baratadiego/ecological-agent-skills) (camera-trap-processing: independence threshold, effort rules, detection history — the domain preset this skill was generalized from)
+- baratadiego, [ecological-agent-skills](https://github.com/baratadiego/ecological-agent-skills) (camera-trap-processing: independence threshold, effort rules, detection history)

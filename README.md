@@ -1,10 +1,10 @@
 # data-analysis-skills
 
 汚い実務データを、監査可能な分析用テーブルに変えるためのAIエージェント用スキル3点セット。
-カメラトラップ（自動撮影カメラ）データの前処理パイプラインを一般化して作った。
+分野を問わず、集計・変換・検証を伴うデータ分析全般に使えるよう一般化してある。
 
 Three agent skills for turning messy real-world tabular data into auditable
-analysis tables, generalized from a camera-trap data pipeline, plus a practice
+analysis tables, plus a practice
 skill for delegating analysis work to LLMs without letting them compute.
 
 ## 3スキルの使い分け
