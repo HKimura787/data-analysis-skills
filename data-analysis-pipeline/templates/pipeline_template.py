@@ -61,6 +61,19 @@ def drop_rows(df, mask, step, code, detail=""):
         excluded_frames.append(gone)
     return df[~mask]
 
+# ---------- Stage 0 相当：00_raw/ を書き込み禁止にして原本を仕組みで守る ----------
+# 入力のコピーが済んでいる前提で、00_raw/ 全体を読み取り専用にする。
+# エディタの deny 設定ではこのスクリプト自身の書き込みは止められないが、
+# ファイル権限なら止められる。再コピーするときは権限を戻してから行うこと。
+# （入力パスが 00_raw/ の外を指している場合は何もしない）
+raw_dir = Path(cfg["input_csv"]).parent
+if raw_dir.name == "00_raw" and raw_dir.exists():
+    for p in sorted(raw_dir.rglob("*"), key=lambda x: -len(x.parts)):
+        p.chmod(0o555 if p.is_dir() else 0o444)
+    raw_dir.chmod(0o555)
+    decisions.append("00_raw/ locked read-only after copy (files 444 / dirs 555). [source: default]")
+    print("[raw lock] 00_raw/ is now read-only")
+
 # ---------- Stage 1：監査（読むだけ。データは一切いじらない） ----------
 # keep_default_na=False が大事："" や "NA" を勝手に欠損にされると監査の件数が狂う。
 raw = pd.read_csv(cfg["input_csv"], dtype=str, keep_default_na=False, encoding="utf-8-sig")

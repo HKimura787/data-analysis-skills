@@ -69,6 +69,23 @@ drop_rows <- function(df, mask, step, code, detail = "") {
   df[!mask, ]
 }
 
+# ---------- Stage 0 相当：00_raw/ を書き込み禁止にして原本を仕組みで守る ----------
+# 入力のコピーが済んでいる前提で、00_raw/ 全体を読み取り専用にする。
+# エディタの deny 設定ではこのスクリプト自身の書き込みは止められないが、
+# ファイル権限なら止められる。再コピーするときは権限を戻してから行うこと。
+# （入力パスが 00_raw/ の外を指している場合は何もしない。Windows では chmod は
+#   読み取り専用属性として働く）
+raw_dir <- dirname(cfg$input_csv)
+if (basename(raw_dir) == "00_raw" && dir.exists(raw_dir)) {
+  entries <- list.files(raw_dir, recursive = TRUE, full.names = TRUE,
+                        all.files = TRUE, no.. = TRUE)
+  for (f in entries[!dir.exists(entries)]) Sys.chmod(f, mode = "0444", use_umask = FALSE)
+  for (d in entries[dir.exists(entries)])  Sys.chmod(d, mode = "0555", use_umask = FALSE)
+  Sys.chmod(raw_dir, mode = "0555", use_umask = FALSE)
+  decisions <- c(decisions, "00_raw/ locked read-only after copy (files 444 / dirs 555). [source: default]")
+  cat("[raw lock] 00_raw/ is now read-only\n")
+}
+
 # ---------- Stage 1：監査（読むだけ。データは一切いじらない） ----------
 # na = character() が大事："" や "NA" を勝手に欠損にされると監査の件数が狂う。
 raw <- read_csv(cfg$input_csv, col_types = cols(.default = col_character()),
@@ -273,7 +290,7 @@ if (length(excluded_frames) > 0) {
 lines <- c("# decision_log", paste0("- ", decisions), "", "## count ledger",
            sapply(ledger, function(x) sprintf("- %s: in=%s out=%s", x[1], x[2], x[3])),
            sprintf("- raw rows=%d, clean rows=%d, excluded rows total=%d (see excluded_rows.csv)",
-                   nrow(raw), nrow(df), sum(sapply(excluded_frames, nrow))))
+                   nrow(raw), nrow(df), sum(vapply(excluded_frames, nrow, integer(1)))))
 writeLines(lines, file.path(cfg$out_dir, "decision_log.md"))
 
 # 手順書を出す。人間が Excel 等の手作業で同じ結果を再現するための手順で、
