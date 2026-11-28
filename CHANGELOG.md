@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-11-28 — 複数値識別子・時期で変わる識別子・入力の採否
+
+- `data-analysis-check`：項目9に、観測表／リンク表の件数照合と新旧対照表の適用範囲照合を追加（検証項目は11項目のまま）。
+- `data-analysis-pipeline`：Stage 0 の Input に入力の採否と利用条件、Stage 1 に粒度の確認、Stage 3 に複数値識別子（リンク表・配分規則・手順書での展開方法）と時期で変わる識別子の規則を追加。あわせて複数ソースの扱いの境界を整理した：正規化（Stage 1〜3）はソース別スクリプト（`normalize/<source_id>.py`）で1〜2件ずつ処理し、元ファイルと照合して `confirmed` にしてから次へ進む。共通スキーマに揃った後の統合・分析は `integrate.py` の1本。スクリプト同士の import は禁止し、対応表などの共有知識は版管理したCSV入力に置く（principle 7 と Code style を改訂、File layout に `normalize/`・`normalized/`・`integrate.py`・`input_register.csv` を追加）。
+- 発端：Codex が起草したブランチ `codex/normalization-grain`（2026-11-28）を取り込み。多ソース正規化の境界はユーザーの one-file-one-script の進め方に合わせて整理（正規化はソース別スクリプト、統合以降は1本）。
+
 ## 2026-11-28 — Xtrusio 記事由来の運用知見の取り込み
 
 Claude Code でのデータ分析を解説した記事（Xtrusio）を発端に、候補5件と
