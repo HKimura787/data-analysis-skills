@@ -39,6 +39,7 @@ Domain-specific rules became parameters; the audit trail stayed mandatory.
 
 - **Comment what each block does** — its purpose and the judgment behind it, not syntax narration. The reader is a human (the user) checking the analysis, possibly months later.
 - **Disposable, flat, single file** (user's rules, 2026-11-24 / 2026-11-27). No reuse-premised abstraction, frameworks, or external config files; parameters live in one CONFIG block at the top. Write like the pandas and tidyverse documentation examples: one operation per line, every intermediate product (data frame etc.) kept in a meaningfully named variable and inspectable at each step (print `shape` / `head()` / key-column sums). Never bury intermediate state inside nested one-liners, long method chains, composed expressions, or helper internals — the intermediate state is what gets verified.
+- **Source-specific normalization.** When inputs have different layouts or semantics, give each source a normalization entry point that can run independently. Version shared lookup tables as inputs. Bring the resulting tables to a shared schema before combining them.
 - **Plain `for` loops; functions only when the same operation literally repeats.** Write repetition over processing units (files, species, sites, years) as an explicit `for` loop the reader can step through line by line. Whole-column vector operations stay as one-line vector operations; whether a row-wise loop is needed is decided by the meaning of the operation.
 - **Manually reproducible, with a procedure document.** Every transformation must be expressible as operations a human could perform by hand in Excel — sort, filter, lookup against a mapping table, pivot, a computed column (same-row arithmetic, previous-row reference), moving rows aside — even when the row count makes it impractical in practice. No cleaning/shaping step that only a black box can perform. A procedure document (`procedure.md`) is always shipped: draft the steps at Stage 0 for approval (definitions only — counts are not known yet), then emit the final version after the run with each step carrying its checkpoint count from the ledger ("after this step you should have N rows"), so a manual worker can verify their progress against the script's run.
 
@@ -67,6 +68,8 @@ Before any code, write down and confirm (this table is the pipeline-side view of
 Done when the user can answer, in their own words, the three gate questions of `data-analysis-check` 手順1: what was excluded (WHERE), the numerator/denominator of every metric, and the join keys and grain (does a join multiply rows?).
 
 ## Stage 1 — Audit (inspect only, modify nothing)
+
+Before normalization, record availability and analytical eligibility separately. The input register should distinguish an offer or listing, receipt of an identifiable version, and selection for the current analysis, with evidence and a reason for each hold or exclusion. Record the original producer, acquisition source and date, and observation period separately if they differ. When reuse is limited, verify that the applicable terms cover the intended use. Check that the source exposes records at the required grain. If only a summary is available, record which analysis cannot be supported at that grain.
 
 Produce an audit table:
 
@@ -101,6 +104,8 @@ Output: `clean.csv` (new file; raw untouched).
 - Canonical column names; one name per concept across all files.
 - Unit conversions applied once, recorded in the decision log (original unit → analysis unit).
 - Reshape to tidy form for the declared analysis unit (long for event data, wide only at presentation).
+- **Multi-valued identifiers:** keep one row per observation with its original value and source locator (file/version plus sheet and cell for a spreadsheet). In a separate link table, emit one row per observation and identifier. Require a unique observation key in the observation table and a unique observation–identifier pair in the link table. Keep measures in the observation table and define any allocation before aggregating by linked identifier.
+- **Identifiers that change over time:** keep raw labels, canonical labels and verified string codes in separate fields. Where successor entities have a different scope, keep historical and current identities separately. Use the namespace and applicable period when a code alone is ambiguous. Leave a historical identifier missing when it cannot be established. Record the version, coverage and unresolved keys of any crosswalk.
 - Joins: assert and print row counts **before and after** every join; an unexplained row gain/loss stops the pipeline. Also stop on a degenerate join: 0 matched rows, or a key match rate far below what the specification or the Stage 1 audit leads you to expect (e.g. under 5% when most keys should match). A join that silently matches almost nothing is a failure, not an empty result — record the observed match rate in the decision log.
 
 ## Stage 4 — Analysis table
