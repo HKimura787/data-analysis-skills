@@ -30,7 +30,7 @@ Domain-specific rules became parameters; the audit trail stayed mandatory.
 4. **Counts balance at every step.** Invariant: `n_in == n_kept + n_excluded + n_quarantined`. Print the ledger after each stage (raw → dedupe → parse → normalize → analysis table); a count that cannot be explained stops the pipeline. Excluded/quarantined rows are written to `excluded_rows.csv` with a reason code — never just dropped.
 5. **Decisions are logged with their source.** Every threshold, mapping, exclusion and unit conversion goes to the decision log, tagged `source: user | default | inferred`. Decisions still on `default`/`inferred` are listed at the top of the final report as **unconfirmed decisions**. For each such decision that the user cannot settle at Stage 0, also report the headline result under the main alternative (at most 2 alternatives) and state whether the headline conclusion flips — with the flip criterion (direction, ranking, crossing a management target) fixed at Stage 0, before seeing the results. Never pick the convenient alternative after seeing the numbers: the user chooses for substantive reasons, logged `source: user`. "Does not flip" means robust only within the alternatives compared. (The Stage 4 sensitivity counts are one instance of this; the canonical statement is in `data-analysis-check` 手順1.) Do not hand-write `decision_log.md` as prose: the script generates it from its CONFIG block and runtime count variables, so logged numbers cannot diverge from the actual run (the reasons — the "why" — are strings written in CONFIG that the script emits verbatim).
 6. **Fail closed.** Unmapped label → **stop by default**: show the unmapped labels with counts and let the user decide (extend the mapping table, or quarantine). Quarantine only on the user's decision, logged with `source: user`. Unparseable datetime → quarantine, not silent coercion. Imputation is off unless explicitly configured with a reason.
-7. **One-off analysis = single-file linear code.** No reuse-premised modularization. Start from `templates/pipeline_template.py`, fill its CONFIG, run top to bottom.
+7. **One-off analysis = single-file linear code, one file per unit of human review.** No reuse-premised modularization. With a single input source, the whole pipeline is one `pipeline.py`. With several sources, each source gets its own normalization script (`normalize/<source_id>.py`, Stages 1–3 for that source only), and everything after the data reach the shared schema is one `integrate.py`. Each of these files individually follows the single-file, linear rules. Scripts never import from each other; shared knowledge (code tables, crosswalks, label mappings) lives in versioned CSV inputs, never in shared code. Start each file from `templates/pipeline_template.py`.
 8. **CSV outputs are UTF-8 with BOM.** So they open correctly in Excel on Windows (no mojibake for Japanese labels): Python `encoding="utf-8-sig"`, R `readr::write_excel_csv()` (or base `write.csv(..., fileEncoding = "UTF-8-BOM")`). Read inputs BOM-tolerantly (`utf-8-sig` / readr default) so a BOM'd file round-trips.
 
 ---
@@ -39,6 +39,8 @@ Domain-specific rules became parameters; the audit trail stayed mandatory.
 
 - **Comment what each block does** — its purpose and the judgment behind it, not syntax narration. The reader is a human (the user) checking the analysis, possibly months later.
 - **Disposable, flat, single file** (user's rules, 2026-11-24 / 2026-11-27). No reuse-premised abstraction, frameworks, or external config files; parameters live in one CONFIG block at the top. Write like the pandas and tidyverse documentation examples: one operation per line, every intermediate product (data frame etc.) kept in a meaningfully named variable and inspectable at each step (print `shape` / `head()` / key-column sums). Never bury intermediate state inside nested one-liners, long method chains, composed expressions, or helper internals — the intermediate state is what gets verified.
+- **One normalization script per source, confirmed before the next** (user's rule, 2026-11-28). With multiple input files, write one dedicated script per source file, even when two sources look alike: copy the previous script and edit it, so the diff between the two scripts records how the sources differ. Do not process a folder in one pass, loop over sources inside one script, or add a `--source` switch. Each script reads only its source and writes `normalized/<source_id>.csv` in the shared schema plus `normalized/<source_id>_ledger.md` (n_in / kept / excluded / quarantined, numeric column totals before and after, sha256 of the raw file and of the script). Shared lookup tables are versioned inputs; a script never edits them.
+- **Reconcile against the original, then advance.** Work on at most two sources at a time, in input-register order. After running a source's script, stop and show the user its reconciliation against the original file: row count, every numeric column total against the original's own total row (or the Stage 1 anchor), and at least 3 cells traced by hand, one near an exclusion boundary. Start the next source only after the user marks this one `confirmed` in the input register, with the date. A fix to a confirmed source's script resets it to `unconfirmed`.
 - **Plain `for` loops; functions only when the same operation literally repeats.** Write repetition over processing units (files, species, sites, years) as an explicit `for` loop the reader can step through line by line. Whole-column vector operations stay as one-line vector operations; whether a row-wise loop is needed is decided by the meaning of the operation.
 - **Manually reproducible, with a procedure document.** Every transformation must be expressible as operations a human could perform by hand in Excel — sort, filter, lookup against a mapping table, pivot, a computed column (same-row arithmetic, previous-row reference), moving rows aside — even when the row count makes it impractical in practice. No cleaning/shaping step that only a black box can perform. A procedure document (`procedure.md`) is always shipped: draft the steps at Stage 0 for approval (definitions only — counts are not known yet), then emit the final version after the run with each step carrying its checkpoint count from the ledger ("after this step you should have N rows"), so a manual worker can verify their progress against the script's run.
 
@@ -50,7 +52,7 @@ Before any code, write down and confirm (this table is the pipeline-side view of
 
 | Item | What to fix |
 |---|---|
-| Input | File(s), version/date, source, row unit (1 row = what?) |
+| Input | File(s), version/date, source, row unit (1 row = what?). For each candidate source: listed / received (identifiable version) / selected, with the reason for any hold or exclusion; original producer, acquisition source and date, and observation period when they differ; whether the terms of use cover this analysis |
 | Column roles | Classify every column (taxonomy from Anthropic's explore-data): Identifier / Dimension / Metric / Temporal / Text / Boolean / Structural — plus the unit for each Metric |
 | Analysis unit | The grain of the final table (e.g. site × week, individual × day) |
 | Denominators | What every rate is divided by (effort, exposure, population) and where it comes from |
@@ -63,6 +65,8 @@ Before any code, write down and confirm (this table is the pipeline-side view of
 | Unobserved cells | Unit × period cells not observed are `NA`, never `0` |
 | Stakes tier | 通常 / 重要 / 間違いが許されない (tiers defined in `data-analysis-check` 手順1) — decides how much of Stage 6 is mandatory |
 | Language | Python or R |
+
+The per-source states in the Input row are tracked in an **input register**: one row per candidate source (source id; state — listed / received / selected, and `confirmed` once that source's normalized output has been reconciled against the original; reason for any hold or exclusion; sha256 of the received file). Keep it as a section of `spec.md`, or as `input_register.csv` beside it when the source count is large. This register is the only place source states are defined; per-source scripts run in input-register order (see Code style), and only `confirmed` sources enter integration.
 
 Done when the user can answer, in their own words, the three gate questions of `data-analysis-check` 手順1: what was excluded (WHERE), the numerator/denominator of every metric, and the join keys and grain (does a join multiply rows?).
 
@@ -79,6 +83,7 @@ Produce an audit table:
 - Numeric columns: parse-failure count, min/max, impossible values, **and the column total** (the pre-cleaning anchor that later stages reconcile against)
 - Category columns: full distinct-label list (this feeds the mapping table)
 - Key columns: uniqueness check
+- Grain: whether each source exposes records at the declared analysis unit; if only a summary exists, state which analyses it cannot support
 
 Output: `audit.md`. Do **not** clean in this stage.
 
@@ -101,7 +106,10 @@ Output: `clean.csv` (new file; raw untouched).
 - Canonical column names; one name per concept across all files.
 - Unit conversions applied once, recorded in the decision log (original unit → analysis unit).
 - Reshape to tidy form for the declared analysis unit (long for event data, wide only at presentation).
+- **Multi-valued identifiers** (one cell lists several identifiers): keep the observation table at one row per observation, with its raw value and source locator (file + version; sheet + cell for a spreadsheet, row number in the raw file for CSV). Build a separate link table, one row per observation × identifier. Assert and print: observation key unique; (observation key, identifier) unique; every link-table key exists in the observation table; link-table rows = sum of identifiers per observation; count of values matching more than one candidate (stop and show them). Measures stay in the observation table only. Aggregating by a linked identifier requires an allocation rule (count fully in each / split equally / by weight / do not aggregate) fixed at Stage 0 and logged; with none declared, stop. In `procedure.md`, express the split as: computed columns extracting the 1st, 2nd, … value → for each column, filter non-empty rows and copy (observation key, value) to the link sheet.
+- **Identifiers that change over time:** keep raw label, canonical label and verified code (as string) in separate columns. When a successor covers a different extent than its predecessor, keep historical and current identifiers in separate columns. Resolve ambiguous codes by namespace + validity period. When a historical identifier cannot be established, do not guess: stop by default and show those records with counts (principle 6); leaving it `NA` and continuing is a user decision logged `source: user`. Record the crosswalk's version, coverage period and unresolved keys in the decision log.
 - Joins: assert and print row counts **before and after** every join; an unexplained row gain/loss stops the pipeline. Also stop on a degenerate join: 0 matched rows, or a key match rate far below what the specification or the Stage 1 audit leads you to expect (e.g. under 5% when most keys should match). A join that silently matches almost nothing is a failure, not an empty result — record the observed match rate in the decision log.
+- `integrate.py` reads only sources marked `confirmed` and stops if a normalized file's or its script's sha256 differs from the value recorded at confirmation. It then runs the cross-source checks no single-source review can see: records duplicated across sources, mixed revisions of the same period, and a per-source total series flagging year-on-year jumps beyond the threshold fixed in spec.md.
 
 ## Stage 4 — Analysis table
 
@@ -119,7 +127,7 @@ Output: `analysis_table.csv` (+ `effort_table.csv` when applicable).
 - Inferential work: hand off to the dedicated skills — `statistical-analysis`, `pymc` (Bayesian), `occupancy-and-detection` / domain skills where relevant.
 - Figures: hand off to `scientific-visualization`. Every figure states what was filtered out.
 - **Spreadsheet deliverables** (rule from Anthropic's xlsx skill): write formulas, never hardcoded computed results, so the sheet recalculates when inputs change; document every assumption and hardcoded number where the reader can see it; ship zero formula errors — and remember a clean recalculation proves formulas *evaluate*, not that they are *right*, so spot-check that a few formulas pull the expected values.
-- **Notebook deliverables** (convention from OpenAI's jupyter-notebook skill): small runnable cells, each with a short note of purpose and expected result; validate by running top to bottom; if execution is impossible, say so explicitly. Notebooks are for this stage only (descriptive statistics and figures): Stages 1–4 live in the single `pipeline.py`, and a notebook's only input is `analysis_table.csv` — never clean or reshape inside a notebook. The code style above applies to notebook code too.
+- **Notebook deliverables** (convention from OpenAI's jupyter-notebook skill): small runnable cells, each with a short note of purpose and expected result; validate by running top to bottom; if execution is impossible, say so explicitly. Notebooks are for this stage only (descriptive statistics and figures): Stages 1–4 live in `pipeline.py`, or in the per-source scripts plus `integrate.py`, and a notebook's only input is `analysis_table.csv` — never clean or reshape inside a notebook. The code style above applies to notebook code too.
 
 ## Stage 6 — Verification
 
@@ -153,7 +161,11 @@ Run the companion `data-analysis-check` skill's 11-item verification on the resu
   verification.md    # Stage 6 verification table + results (data-analysis-check 手順5 order)
   report.md          # final report, when one is produced
   fixtures/          # known-answer test data with planted defects
-  pipeline.py        # the single-file script that produced everything above
+  pipeline.py        # single-source jobs: the single-file script that produced everything above
+  normalize/         # multi-source jobs: one normalization script per source (normalize/<source_id>.py)
+  normalized/        # multi-source jobs: per-source normalized tables + their ledgers
+  integrate.py       # multi-source jobs: combines confirmed sources, then Stages 4–6
+  input_register.csv # multi-source jobs: per-source states (or a section of spec.md)
 ```
 
 Known-answer testing: keep a small fixture with planted defects (exact duplicates,
@@ -172,6 +184,7 @@ the R and Python templates must agree on it exactly.
 - Missing policy per column; datetime format(s), timezone, `dayfirst`
 - Dedupe key and the exact-duplicate decision; eventization anchor and boundary; effort counting convention
 - Labels merged by mechanical normalization (the full raw→normalized list)
+- Allocation rule for multi-valued identifiers; crosswalk version, coverage and unresolved keys
 
 ## Anti-patterns (stop and fix if you catch yourself)
 
@@ -180,6 +193,7 @@ the R and Python templates must agree on it exactly.
 - Overwriting or "fixing" the raw file
 - Reporting a rate without its denominator table
 - Splitting a one-off analysis into modules/packages for hypothetical reuse
+- Normalizing many sources in one script or loop and checking only the combined result
 - Presenting results before the Stage-6 count reconciliation
 
 ## Template
